@@ -38,7 +38,7 @@ namespace Hatha
             Run(Tools.Ffmpeg, "-v error -y -f lavfi -i testsrc=duration=10:size=320x240:rate=30 -f lavfi -i sine=frequency=440:duration=10"
                 + " -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest " + Quote(video));
 
-            foreach (var test in new Action[] { Probe, Cut, Gif, Mp3, Compress, Convert, Frame, Download, Window })
+            foreach (var test in new Action[] { Probe, Cut, Gif, Mp3, Compress, Convert, Frame, Play, Download, Window })
             {
                 Console.WriteLine("=== " + test.Method.Name + " ===");
                 try { test(); }
@@ -116,6 +116,24 @@ namespace Hatha
             png.Position = 0;
             using (Image frame = Image.FromStream(png))
                 Equal(frame.Width + "x" + frame.Height, "160x120", "size of the frame");
+        }
+
+        // ffplay plays a second of the piece without a window and reports its clock on stderr, the line the app reads.
+        static void Play()
+        {
+            var ffplay = Process.Start(new ProcessStartInfo(Tools.Ffplay, "-hide_banner -nodisp -autoexit -ss 2 -t 1 " + Quote(video))
+            {
+                UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true,
+            });
+            string stderr = ffplay.StandardError.ReadToEnd();
+            ffplay.WaitForExit();
+            Expect(ffplay.ExitCode == 0, "ffplay exits 0");
+            string[] updates = stderr.Split('\r', '\n');
+            string last = "";
+            foreach (string update in updates) if (update.Trim().Length > 0) last = update;
+            double clock;
+            Expect(double.TryParse(last.Trim().Split(' ')[0], NumberStyles.Float, CultureInfo.InvariantCulture, out clock) && clock >= 2.5 && clock <= 3.2,
+                "ffplay's clock ran from 2 to 3: [" + last.Trim() + "]");
         }
 
         // A direct link served from this machine goes through yt-dlp's generic extractor, which exercises

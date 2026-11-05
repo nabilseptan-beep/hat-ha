@@ -8,29 +8,35 @@ using System.Windows.Forms;
 
 namespace Hatha
 {
-    // The edit screen: pick a video, mark a piece of it on the slider, then cut it, make a GIF or an MP3,
-    // squeeze it under a size, or convert it to MP4. Results go to Downloads\هاتها.
+    // The edit screen: pick a video, watch it or step through it on the slider, mark a piece, then cut it,
+    // make a GIF or an MP3, squeeze it under a size, or convert it to MP4. Results go to Downloads\هاتها.
+    // While it plays, ffplay draws into the picture box; when it stops, ffmpeg draws the exact frame there.
     internal sealed class QasqousaTab : MirroredTabPage
     {
         enum Operation { Cut, Gif, Mp3, Compress, Convert }
 
         const int PreviewWidth = 480;
         const int PreviewDelayMs = 150;
+        const int PlayTickMs = 100;
 
         readonly TextBox path;
-        readonly Button choose, playSource, markFrom, markTo, run, cancel, playResult, openFolder;
+        readonly Button choose, playSource, play, markFrom, markTo, run, cancel, playResult, openFolder;
         readonly PictureBox preview;
+        readonly Player player;
         readonly TrackBar slider;
-        readonly Label position, range, gifWidthLabel, gifFpsLabel, sizeLabel, status;
+        readonly Label times, gifWidthLabel, gifFpsLabel, sizeLabel, status;
         readonly LinkLabel report;
         readonly ComboBox operation;
         readonly NumericUpDown gifWidth, gifFps, size;
         readonly ProgressBar progress;
         readonly Timer previewTimer = new Timer { Interval = PreviewDelayMs };
+        readonly Timer playTimer = new Timer { Interval = PlayTickMs };
         readonly ToolTip tips = new ToolTip();
 
         MediaInfo media;
         double from, to;
+        bool syncing;         // the slider is following playback, not the other way round
+        double stopAt;        // playback stops here: the end of the piece, or of the file
         int previewRequest;   // so a slow frame doesn't overwrite a newer one
         ToolProcess running;
         bool cancelled;
@@ -47,7 +53,7 @@ namespace Hatha
             choose.Click += delegate { Choose(); };
             playSource = new Button { Text = "شغّل في المشغل", Location = new Point(550, 14), Size = new Size(146, 32), Enabled = false, Anchor = AnchorStyles.Top | AnchorStyles.Right };
             playSource.Click += delegate { Process.Start(path.Text); };
-            tips.SetToolTip(playSource, "يفتح الفيديو في المشغل بتاعك؛ المعاينة هنا صورة ثابتة بس");
+            tips.SetToolTip(playSource, "يفتح الفيديو في المشغل بتاعك");
 
             preview = new PictureBox
             {
@@ -57,6 +63,9 @@ namespace Hatha
                 BackColor = Color.Black,
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
             };
+            player = new Player(preview);
+            player.Ended += delegate { Stopped(stopAt); };
+            playTimer.Tick += delegate { FollowPlayback(); };
 
             // Tenths of a second. Left-to-right like every video timeline, whatever the page's direction.
             slider = new TrackBar { Location = new Point(16, 336), Size = new Size(680, 45), TickStyle = TickStyle.None, RightToLeft = RightToLeft.No, Enabled = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
@@ -64,14 +73,16 @@ namespace Hatha
             slider.ValueChanged += delegate { SliderMoved(); };
             previewTimer.Tick += delegate { previewTimer.Stop(); ShowFrame(); };
 
-            position = new Label { Location = new Point(16, 392), Size = new Size(134, 24), Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
-            markFrom = new Button { Text = "ابدأ من هنا", Location = new Point(160, 388), Size = new Size(110, 30), Enabled = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
-            markFrom.Click += delegate { from = Seconds(); if (to < from) to = media.Duration; ShowRange(); };
+            play = new Button { Text = "شغّل", Location = new Point(16, 388), Size = new Size(90, 30), Enabled = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+            play.Click += delegate { TogglePlay(); };
+            tips.SetToolTip(play, "يشغّل من موضع الشريط لحد نهاية القطعة (مسافة)");
+            markFrom = new Button { Text = "ابدأ من هنا", Location = new Point(114, 388), Size = new Size(110, 30), Enabled = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+            markFrom.Click += delegate { from = Seconds(); if (to < from) to = media.Duration; ShowTimes(); };
             tips.SetToolTip(markFrom, "القطعة تبدأ من موضع الشريط");
-            markTo = new Button { Text = "اقطع لحد هنا", Location = new Point(278, 388), Size = new Size(110, 30), Enabled = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
-            markTo.Click += delegate { to = Seconds(); if (from > to) from = 0; ShowRange(); };
+            markTo = new Button { Text = "اقطع لحد هنا", Location = new Point(232, 388), Size = new Size(110, 30), Enabled = false, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+            markTo.Click += delegate { to = Seconds(); if (from > to) from = 0; ShowTimes(); Pause(); };
             tips.SetToolTip(markTo, "القطعة تنتهي عند موضع الشريط");
-            range = new Label { Location = new Point(396, 392), Size = new Size(300, 24), Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            times = new Label { Location = new Point(350, 392), Size = new Size(346, 24), Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
 
             operation = new ComboBox { Location = new Point(16, 428), Size = new Size(200, 28), DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
             operation.Items.AddRange(new object[] { "قص", "تحويل GIF", "استخراج MP3", "ضغط لحجم معين", "تحويل لـ MP4" });
@@ -105,7 +116,7 @@ namespace Hatha
 
             Controls.AddRange(new Control[]
             {
-                pathLabel, path, choose, playSource, preview, slider, position, markFrom, markTo, range,
+                pathLabel, path, choose, playSource, preview, slider, play, markFrom, markTo, times,
                 operation, gifWidthLabel, gifWidth, gifFpsLabel, gifFps, sizeLabel, size,
                 run, cancel, progress, status, report, playResult, openFolder,
             });
@@ -130,9 +141,10 @@ namespace Hatha
             }
         }
 
-        // Reads the file's length and size, then shows its first frame and the whole of it as the piece.
+        // Reads the file's length and size, hands it to the player, and takes the whole of it as the piece.
         public async void Load(string file)
         {
+            Pause();
             path.Text = file;
             playSource.Enabled = true;
             Say("بيقرأ الفيديو...", SystemColors.ControlText);
@@ -144,18 +156,18 @@ namespace Hatha
             if (code != 0 || media.Duration <= 0)
             {
                 Fail("مش عارف أقرأ الملف ده.", string.Join("\n", lines));
-                slider.Enabled = markFrom.Enabled = markTo.Enabled = run.Enabled = false;
+                slider.Enabled = play.Enabled = markFrom.Enabled = markTo.Enabled = run.Enabled = false;
                 preview.Image = null;
                 return;
             }
 
             Say("", SystemColors.ControlText);
-            slider.Enabled = markFrom.Enabled = markTo.Enabled = run.Enabled = true;
+            slider.Enabled = play.Enabled = markFrom.Enabled = markTo.Enabled = run.Enabled = true;
             slider.Maximum = (int)(media.Duration * 10);
             slider.Value = 0;
             from = 0;
             to = media.Duration;
-            ShowRange();
+            ShowTimes();
             SliderMoved();
         }
 
@@ -164,16 +176,73 @@ namespace Hatha
             return slider.Value / 10.0;
         }
 
+        // Moved by hand, the slider stops playback and asks for the frame; moved by playback, it just reads.
         void SliderMoved()
         {
-            position.Text = "الموضع: " + Clock(Seconds());
+            ShowTimes();
+            if (syncing) return;
+            StopPlayer();
             previewTimer.Stop();
             previewTimer.Start();
         }
 
-        void ShowRange()
+        void ShowTimes()
         {
-            range.Text = "القطعة: من " + Clock(from) + " إلى " + Clock(to) + " (" + Clock(to - from) + ")";
+            times.Text = Clock(Seconds()) + "   |   القطعة " + Clock(from) + " – " + Clock(to) + " (" + Clock(to - from) + ")";
+        }
+
+        // Plays from the slider to the end of the piece, or to the end of the file when already past it.
+        void TogglePlay()
+        {
+            if (player.Playing) { Pause(); return; }
+            double start = Seconds();
+            stopAt = start < to ? to : media.Duration;
+            if (stopAt - start < 0.1) return;
+            player.Play(path.Text, start, stopAt - start, new Size(media.Width, media.Height));
+            play.Text = "وقّف";
+            playTimer.Start();
+        }
+
+        // Stops where playback got to; the exact frame for that spot follows from the slider.
+        void Pause()
+        {
+            if (!player.Playing) return;
+            double at = player.Position;
+            StopPlayer();
+            Stopped(at >= 0 ? at : Seconds());
+        }
+
+        void StopPlayer()
+        {
+            player.Stop();
+            playTimer.Stop();
+            play.Text = "شغّل";
+        }
+
+        // Puts the slider where playback ended, which brings up that frame.
+        void Stopped(double at)
+        {
+            StopPlayer();
+            slider.Value = Math.Min(slider.Maximum, Math.Max(0, (int)Math.Round(at * 10)));
+            SliderMoved();
+        }
+
+        // Moves the slider along with playback.
+        void FollowPlayback()
+        {
+            double seconds = player.Position;
+            if (seconds < 0) return;
+            syncing = true;
+            slider.Value = Math.Min(slider.Maximum, (int)(seconds * 10));
+            syncing = false;
+        }
+
+        // Space plays and pauses, so the hands can stay on the arrow keys.
+        public bool Shortcut(Keys keys)
+        {
+            if (keys != Keys.Space || !play.Enabled) return false;
+            TogglePlay();
+            return true;
         }
 
         async void ShowFrame()
@@ -245,6 +314,7 @@ namespace Hatha
                     break;
             }
 
+            Pause();
             SetBusy(true);
             ShowDone(false);
             progress.Value = 0;
@@ -304,6 +374,7 @@ namespace Hatha
 
         public void Cancel()
         {
+            StopPlayer();
             if (running == null) return;
             cancelled = true;
             running.Kill();
@@ -315,6 +386,7 @@ namespace Hatha
             else running = null;
             foreach (Control control in new Control[] { choose, slider, markFrom, markTo, operation, gifWidth, gifFps, size, run })
                 control.Enabled = !busy;
+            play.Enabled = !busy && media != null;
             cancel.Visible = busy;
         }
 

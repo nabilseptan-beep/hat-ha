@@ -117,7 +117,8 @@ namespace Hatha
             return !Regex.IsMatch(line, @"^(frame|fps|stream_\d+_\d+_q|bitrate|total_size|out_time_us|out_time_ms|out_time|dup_frames|drop_frames|speed|progress)=");
         }
 
-        static string Seconds(double seconds)
+        // Decimals with a dot, whatever the Windows locale says.
+        public static string Seconds(double seconds)
         {
             return seconds.ToString("0.###", CultureInfo.InvariantCulture);
         }

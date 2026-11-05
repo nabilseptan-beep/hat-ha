@@ -28,7 +28,16 @@ namespace Hatha
             public uint dwTimeout;
         }
 
+        const int GWL_STYLE = -16;
+        const int WS_CHILD = 0x40000000;
+        const int WS_VISIBLE = 0x10000000;
+
         [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string className, string title);
+        [DllImport("user32.dll")] public static extern bool EnableWindow(IntPtr hWnd, bool enable);
+        [DllImport("user32.dll")] static extern IntPtr SetParent(IntPtr child, IntPtr parent);
+        [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr hWnd, int index, int value);
+        [DllImport("user32.dll")] static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, string lParam);
         [DllImport("user32.dll")] static extern bool FlashWindowEx(ref FLASHWINFO info);
         [DllImport("dwmapi.dll")] static extern int DwmGetColorizationColor(out uint color, out bool opaqueBlend);
@@ -44,6 +53,18 @@ namespace Hatha
             string folder = Marshal.PtrToStringUni(path);
             Marshal.FreeCoTaskMem(path);
             return folder;
+        }
+
+        // Turns another program's top-level window into a child of ours.
+        public static void MakeChild(IntPtr window, IntPtr parent)
+        {
+            SetWindowLong(window, GWL_STYLE, WS_CHILD | WS_VISIBLE);
+            SetParent(window, parent);
+        }
+
+        public static void MoveWindow(IntPtr window, System.Drawing.Rectangle bounds)
+        {
+            MoveWindow(window, bounds.X, bounds.Y, bounds.Width, bounds.Height, true);
         }
 
         // Grey hint text shown inside an empty text box, also while it has the focus.

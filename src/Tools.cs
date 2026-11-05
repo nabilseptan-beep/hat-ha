@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Hatha
 {
-    // yt-dlp, ffmpeg and deno live in %LOCALAPPDATA%\Hatha. They are not shipped inside the exe: the first run
+    // yt-dlp, ffmpeg (with ffprobe and ffplay) and deno live in %LOCALAPPDATA%\Hatha. They are not shipped inside the exe: the first run
     // downloads them from their GitHub releases, and yt-dlp updates itself once a week (sites keep changing).
     // deno is the JavaScript runtime yt-dlp needs for YouTube; it is found by sitting next to yt-dlp.exe.
     internal static class Tools
@@ -21,6 +21,7 @@ namespace Hatha
         public static readonly string FfmpegFolder = Path.Combine(Folder, "ffmpeg");
         public static readonly string Ffmpeg = Path.Combine(FfmpegFolder, "ffmpeg.exe");
         public static readonly string Ffprobe = Path.Combine(FfmpegFolder, "ffprobe.exe");
+        public static readonly string Ffplay = Path.Combine(FfmpegFolder, "ffplay.exe");
 
         const string YtDlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
         const string DenoUrl = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip";
@@ -29,7 +30,7 @@ namespace Hatha
 
         public static bool Installed
         {
-            get { return File.Exists(YtDlp) && File.Exists(Deno) && File.Exists(Ffmpeg) && File.Exists(Ffprobe); }
+            get { return File.Exists(YtDlp) && File.Exists(Deno) && File.Exists(Ffmpeg) && File.Exists(Ffprobe) && File.Exists(Ffplay); }
         }
 
         // Downloads whatever is missing. Progress is (what is happening, percent of the current download).
@@ -40,7 +41,7 @@ namespace Hatha
                 await Download(YtDlpUrl, YtDlp, "بينزّل yt-dlp", progress);
             if (!File.Exists(Deno))
                 await DownloadZip(DenoUrl, Folder, "deno", progress);
-            if (!File.Exists(Ffmpeg) || !File.Exists(Ffprobe))
+            if (!File.Exists(Ffmpeg) || !File.Exists(Ffprobe) || !File.Exists(Ffplay))
                 await DownloadZip(FfmpegUrl, FfmpegFolder, "ffmpeg", progress);
         }
 
@@ -68,7 +69,6 @@ namespace Hatha
         }
 
         // Keeps the programs and the DLLs they share, flat in one folder; docs and headers stay in the zip.
-        // ffplay is not needed.
         static void ExtractPrograms(string zip, string folder)
         {
             Directory.CreateDirectory(folder);
@@ -77,7 +77,7 @@ namespace Hatha
                 foreach (ZipArchiveEntry entry in archive.Entries)
                 {
                     string extension = Path.GetExtension(entry.Name).ToLowerInvariant();
-                    if ((extension != ".exe" && extension != ".dll") || entry.Name == "ffplay.exe") continue;
+                    if (extension != ".exe" && extension != ".dll") continue;
                     entry.ExtractToFile(Path.Combine(folder, entry.Name), true);
                 }
             }

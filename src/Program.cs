@@ -6,8 +6,8 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("هاتها")]
 [assembly: AssemblyProduct("هاتها")]
 [assembly: AssemblyDescription("Downloads videos from any site and trims, converts and compresses them")]
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 namespace Hatha
 {

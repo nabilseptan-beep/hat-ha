@@ -79,6 +79,7 @@ namespace Hatha
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             if (tabs.Enabled && tabs.SelectedTab == hatha && hatha.Shortcut(keyData)) return true;
+            if (tabs.Enabled && tabs.SelectedTab == qasqousa && qasqousa.Shortcut(keyData)) return true;
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
