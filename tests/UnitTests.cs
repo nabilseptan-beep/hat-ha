@@ -62,7 +62,7 @@ namespace Hatha
             var request = new DownloadRequest { Url = "https://x/v", Folder = @"C:\Users\me\Downloads\هاتها", Cookies = "" };
             string args = YtDlp.DownloadArgs(request, @"C:\Users\me\AppData\Local\Hatha\ffmpeg");
             Contains(args, "--ffmpeg-location \"C:\\Users\\me\\AppData\\Local\\Hatha\\ffmpeg\"");
-            Contains(args, "-o \"C:\\Users\\me\\Downloads\\هاتها\\%(title)s%(height& [{}p]|)s.%(ext)s\"");
+            Contains(args, "-o \"C:\\Users\\me\\Downloads\\هاتها\\%(title).100s%(height& [{}p]|)s.%(ext)s\"");
             Contains(args, "--progress-template \"download:HATHA_PROGRESS %(progress.downloaded_bytes|0)d"
                 + " %(progress.total_bytes,progress.total_bytes_estimate|0)d %(progress.speed|0)d %(progress.eta|0)d\"");
             Contains(args, "--print \"after_move:HATHA_FILE %(filepath)s\"");

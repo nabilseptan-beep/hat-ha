@@ -116,7 +116,8 @@ namespace Hatha
                 + " %(progress.total_bytes,progress.total_bytes_estimate|0)d %(progress.speed|0)d %(progress.eta|0)d\"");
             args.Append(" --no-simulate --print \"after_move:HATHA_FILE %(filepath)s\"");
             // The height goes into the name, so other qualities of the same video don't count as already downloaded.
-            args.Append(" -o ").Append(Quote(request.Folder + @"\%(title)s%(height& [{}p]|)s.%(ext)s"));
+            // The title is cut at 100 characters: Facebook puts the whole post in it, and Windows paths stop at 260.
+            args.Append(" -o ").Append(Quote(request.Folder + @"\%(title).100s%(height& [{}p]|)s.%(ext)s"));
             if (request.Mp3)
                 // Audio-only when the site has it, so the video isn't fetched just to be thrown away.
                 args.Append(" -f ba/b -x --audio-format mp3");
