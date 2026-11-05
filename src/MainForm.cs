@@ -12,6 +12,7 @@ namespace Hatha
         readonly Settings settings = Settings.Load();
         readonly TabControl tabs;
         readonly HathaTab hatha;
+        readonly QasqousaTab qasqousa = new QasqousaTab();
         readonly ToolStripStatusLabel status;
         readonly ToolStripProgressBar progress;
         readonly ToolStripStatusLabel retry;
@@ -28,12 +29,17 @@ namespace Hatha
             Font = new Font("Segoe UI", 10f);
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoScaleDimensions = new SizeF(96f, 96f);
-            ClientSize = new Size(720, 540);
+            ClientSize = new Size(720, 620);
 
             hatha = new HathaTab(settings);
+            hatha.EditRequested += delegate(string file)
+            {
+                tabs.SelectedTab = qasqousa;
+                qasqousa.Load(file);
+            };
             tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(16, 6), RightToLeftLayout = true };
             tabs.TabPages.Add(hatha);
-            tabs.TabPages.Add(new TabPage("قصقوصة"));
+            tabs.TabPages.Add(qasqousa);
 
             // The form mirrors its children, so the strip is laid out left-to-right and shows up right-to-left.
             status = new ToolStripStatusLabel { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
@@ -56,10 +62,11 @@ namespace Hatha
             Setup();
         }
 
-        // A yt-dlp left running would keep writing into Downloads after the window is gone.
+        // A yt-dlp or ffmpeg left running would keep writing into Downloads after the window is gone.
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             hatha.Cancel();
+            qasqousa.Cancel();
             base.OnFormClosing(e);
         }
 

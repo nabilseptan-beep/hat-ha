@@ -16,6 +16,8 @@ namespace Hatha
             YtDlpInfo();
             YtDlpDownload();
             YtDlpOutput();
+            FfmpegArgs();
+            FfmpegOutput();
             Console.WriteLine(failures == 0 ? "ALL PASSED" : failures + " FAILED");
             return failures == 0 ? 0 : 1;
         }
@@ -96,6 +98,54 @@ namespace Hatha
 
             Equal(YtDlp.LastError(new[] { "WARNING: x", "ERROR: [youtube] abc: Video unavailable", "ERROR: second" }), "second", "last error");
             Equal(YtDlp.LastError(new[] { "WARNING: x" }), "yt-dlp فشل من غير ما يقول ليه", "no error line");
+        }
+
+        static void FfmpegArgs()
+        {
+            const string input = @"C:\Users\me\Downloads\هاتها\حلقة 3 [720p].mp4";
+            Equal(Ffmpeg.ProbeArgs(input),
+                "-v error -show_entries format=duration:stream=width,height -of default=noprint_wrappers=1 \"" + input + "\"", "probe");
+            Equal(Ffmpeg.FrameArgs(input, 12.5, 480),
+                "-v error -ss 12.5 -i \"" + input + "\" -frames:v 1 -vf scale=480:-1 -f image2pipe -vcodec png -", "frame");
+
+            // The piece is always "-ss from -t length", decimals with a dot whatever the Windows locale.
+            string mp4 = Ffmpeg.Mp4Args(input, 2.25, 5.5, @"C:\out\x - قص.mp4");
+            Contains(mp4, "-progress pipe:1 -nostats -y -ss 2.25 -t 3.25 -i \"" + input + "\"");
+            Contains(mp4, " -c:v libx264 -preset veryfast -crf 23 -c:a aac -movflags +faststart \"C:\\out\\x - قص.mp4\"");
+            Contains(Ffmpeg.Mp4Args(input, 0, 10, "o"), " -ss 0 -t 10 -i ");
+            Contains(Ffmpeg.Mp4Args(input, 1.0 / 3, 1, "o"), " -ss 0.333 -t 0.667 -i ");
+
+            string gif = Ffmpeg.GifArgs(input, 0, 3, 320, 15, @"C:\out\x.gif");
+            Contains(gif, " -ss 0 -t 3 -i ");
+            Contains(gif, " -vf \"fps=15,scale=320:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse\" \"C:\\out\\x.gif\"");
+
+            string mp3 = Ffmpeg.Mp3Args(input, 0, 3, @"C:\out\x.mp3");
+            Contains(mp3, " -vn -c:a libmp3lame -q:a 2 \"C:\\out\\x.mp3\"");
+
+            // 16 MB over 60 s is 2184 kbps; 5% is kept back and the audio takes its share.
+            Equal(Ffmpeg.CompressVideoKbps(16, 60, 100000).ToString(), "1979", "compress bitrate");
+            Equal(Ffmpeg.CompressVideoKbps(16, 60, 500).ToString(), "404", "a small source is not inflated");
+            Equal(Ffmpeg.CompressVideoKbps(1, 3600, 100000).ToString(), "50", "compress bitrate floor");
+            string[] passes = Ffmpeg.CompressArgs(input, 0, 60, 1979, @"C:\tmp\log", @"C:\out\x - 16MB.mp4");
+            Equal(passes.Length.ToString(), "2", "two passes");
+            Contains(passes[0], " -c:v libx264 -preset veryfast -b:v 1979k -passlogfile \"C:\\tmp\\log\" -pass:v 1 -an -f mp4 NUL");
+            Contains(passes[1], " -b:v 1979k -passlogfile \"C:\\tmp\\log\" -pass:v 2 -c:a aac -b:a 96k -movflags +faststart \"C:\\out\\x - 16MB.mp4\"");
+        }
+
+        static void FfmpegOutput()
+        {
+            MediaInfo info = Ffmpeg.ParseProbe(new[] { "width=1280", "height=720", "duration=63.4", "width=0", "height=0" });
+            Equal(info.Duration.ToString(System.Globalization.CultureInfo.InvariantCulture), "63.4", "probe duration");
+            Equal(info.Width + "x" + info.Height, "1280x720", "probe size keeps the first stream");
+            info = Ffmpeg.ParseProbe(new[] { "duration=5" });
+            Equal(info.Width + "x" + info.Height, "0x0", "audio-only probe");
+
+            Equal(Ffmpeg.ParseProgress("out_time_us=2500000").ToString(System.Globalization.CultureInfo.InvariantCulture), "2.5", "progress seconds");
+            Equal(Ffmpeg.ParseProgress("out_time_ms=2500000").ToString(), "-1", "only the us line counts");
+            Equal(Ffmpeg.ParseProgress("progress=end").ToString(), "-1", "end line");
+            foreach (string line in new[] { "frame=12", "fps=0.00", "stream_0_0_q=28.0", "bitrate=N/A", "total_size=4096", "out_time_us=1", "out_time_ms=1", "out_time=00:00:00.000001", "dup_frames=0", "drop_frames=0", "speed=1.2x", "progress=continue" })
+                if (Ffmpeg.IsError(line)) Fail("[" + line + "] is progress, not an error");
+            if (!Ffmpeg.IsError("C:\\x.mp4: No such file or directory")) Fail("a complaint should count as an error");
         }
 
         static void Contains(string text, string part)
