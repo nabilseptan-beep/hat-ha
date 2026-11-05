@@ -1,8 +1,8 @@
 @echo off
 rem "run.bat" runs the unit tests: how yt-dlp and ffmpeg command lines are built and their output read.
 rem "run.bat e2e" also runs the real engines on a video it makes with ffmpeg, downloads it through yt-dlp
-rem from a web server on this machine (no internet needed), and opens and closes the window. Run Hatha.exe
-rem once before, so the engines are installed, and close it.
+rem from a web server on this machine, and opens and closes the window. It fetches the engines first when
+rem they are missing; after that no internet is needed. Close Hatha before running it.
 setlocal
 cd /d "%~dp0.."
 

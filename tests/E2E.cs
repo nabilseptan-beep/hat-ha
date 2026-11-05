@@ -27,8 +27,10 @@ namespace Hatha
             scratch = args[1];
             if (!Tools.Installed)
             {
-                Console.WriteLine("Run Hatha.exe once first: the tests use the engines it downloads.");
-                return 2;
+                // On a fresh machine (a CI runner, say) the engines are fetched here the way the app would.
+                Console.WriteLine("Installing the engines first...");
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                Tools.Install(delegate(string what, int percent) { }).Wait();
             }
             Directory.CreateDirectory(scratch);
 

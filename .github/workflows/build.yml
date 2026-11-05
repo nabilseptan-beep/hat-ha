@@ -1,0 +1,32 @@
+# Builds Hatha.exe with the compiler that ships with Windows and runs the unit tests on every push.
+# Every night it also runs the end-to-end tests with the latest yt-dlp, so a site breaking shows up here first.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: cmd /c build.bat
+
+      - name: Unit tests
+        run: cmd /c tests\run.bat
+
+      - name: End-to-end tests
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: cmd /c tests\run.bat e2e
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hatha
+          path: Hatha.exe

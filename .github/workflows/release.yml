@@ -1,0 +1,36 @@
+# Pushing a tag like v1.2.0 builds Hatha.exe and publishes it as a release. The tag's message is the
+# release notes, so write it in Arabic for the people who download it:
+#   git tag -a v1.2.0 -m "..." && git push origin v1.2.0
+# The version baked into the exe (AssemblyVersion in src\Program.cs) must match the tag.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: cmd /c build.bat
+
+      - name: Unit tests
+        run: cmd /c tests\run.bat
+
+      - name: Check the exe carries the tag's version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $exe = (Get-Item Hatha.exe).VersionInfo.FileVersion
+          if ($exe -ne "$tag.0") { throw "Hatha.exe is version $exe but the tag says $tag. Bump AssemblyVersion in src\Program.cs." }
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" Hatha.exe --title "هاتها ${{ github.ref_name }}" --notes-from-tag
