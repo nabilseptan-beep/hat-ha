@@ -18,6 +18,7 @@ namespace Hatha
             YtDlpOutput();
             FfmpegArgs();
             FfmpegOutput();
+            Updates();
             Console.WriteLine(failures == 0 ? "ALL PASSED" : failures + " FAILED");
             return failures == 0 ? 0 : 1;
         }
@@ -167,6 +168,18 @@ namespace Hatha
             foreach (string line in new[] { "frame=12", "fps=0.00", "stream_0_0_q=28.0", "bitrate=N/A", "total_size=4096", "out_time_us=1", "out_time_ms=1", "out_time=00:00:00.000001", "dup_frames=0", "drop_frames=0", "speed=1.2x", "progress=continue" })
                 if (Ffmpeg.IsError(line)) Fail("[" + line + "] is progress, not an error");
             if (!Ffmpeg.IsError("C:\\x.mp4: No such file or directory")) Fail("a complaint should count as an error");
+        }
+
+        static void Updates()
+        {
+            Equal(Updater.ParseTag("https://github.com/nabilseptan-beep/hat-ha/releases/tag/v1.2.0").ToString(), "1.2.0", "tag with v");
+            Equal(Updater.ParseTag("https://github.com/nabilseptan-beep/hat-ha/releases/tag/1.2.10").ToString(), "1.2.10", "tag without v");
+            Equal((Updater.ParseTag("https://github.com/nabilseptan-beep/hat-ha/releases") == null).ToString(), "True", "no release yet");
+            Equal((Updater.ParseTag(null) == null).ToString(), "True", "no location");
+            Equal(Updater.IsNewer(new Version("1.2.0"), "1.1.9").ToString(), "True", "newer");
+            Equal(Updater.IsNewer(new Version("1.2.0"), "1.2.0").ToString(), "False", "same");
+            Equal(Updater.IsNewer(new Version("1.2.0"), "1.10.0").ToString(), "False", "numeric, not textual, comparison");
+            Equal(Updater.IsNewer(null, "1.0.0").ToString(), "False", "nothing found");
         }
 
         static void Contains(string text, string part)

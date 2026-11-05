@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Diagnostics;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -16,6 +17,10 @@ namespace Hatha
         readonly ToolStripStatusLabel status;
         readonly ToolStripProgressBar progress;
         readonly ToolStripStatusLabel retry;
+        readonly ToolStripStatusLabel update;
+        Version latest;   // a release newer than this build, once one is found
+        string fresh;     // its exe, once downloaded
+        bool fetchFailed;
 
         public MainForm()
         {
@@ -46,11 +51,13 @@ namespace Hatha
             progress = new ToolStripProgressBar { Width = 200, Visible = false };
             retry = new ToolStripStatusLabel("حاول تاني") { IsLink = true, Visible = false };
             retry.Click += delegate { Setup(); };
+            update = new ToolStripStatusLabel { IsLink = true, Visible = false };
+            update.Click += delegate { Upgrade(); };
             var about = new ToolStripStatusLabel("عن البرنامج") { IsLink = true };
             about.Click += delegate { using (var form = new AboutForm()) form.ShowDialog(this); };
 
             var bar = new StatusStrip { SizingGrip = false };
-            bar.Items.AddRange(new ToolStripItem[] { status, progress, retry, about });
+            bar.Items.AddRange(new ToolStripItem[] { status, progress, retry, update, about });
 
             Controls.Add(tabs);
             Controls.Add(bar);
@@ -111,6 +118,7 @@ namespace Hatha
                 tabs.Enabled = true;
                 hatha.OfferClipboard();
                 await Tools.ReadVersions();
+                await CheckForUpdate();
             }
             catch (Exception ex)
             {
@@ -118,6 +126,64 @@ namespace Hatha
                 status.Text = "مش عارف أنزّل المحركات (اتأكد من النت): " + ex.Message;
                 retry.Visible = true;
             }
+        }
+
+        // Once a day, asks GitHub whether a newer release exists and offers it on the status line.
+        async Task CheckForUpdate()
+        {
+            if (settings.UpdateChecked >= DateTime.Today) return;
+            Version found = await Updater.Latest();
+            if (found == null) return;   // offline, or nothing released yet: ask again next time
+            settings.UpdateChecked = DateTime.Today;
+            settings.Save();
+            if (!Updater.IsNewer(found, Program.Version)) return;
+            latest = found;
+            update.Text = "فيه إصدار " + latest.ToString(3) + " جديد — حدّث دلوقتي";
+            update.Visible = true;
+        }
+
+        // Fetches the new exe, then swaps it in and restarts, with one question in between. A second click
+        // after a refusal restarts without fetching again; after a failure it opens the releases page.
+        async void Upgrade()
+        {
+            if (fetchFailed)
+            {
+                Process.Start(Updater.Releases);
+                return;
+            }
+            if (fresh == null)
+            {
+                update.Enabled = false;
+                progress.Visible = true;
+                try
+                {
+                    fresh = await Updater.Fetch(latest, Application.ExecutablePath, delegate(int percent)
+                    {
+                        progress.Value = percent;
+                        update.Text = "بينزّل الإصدار " + latest.ToString(3) + " (" + percent + "%)";
+                    });
+                }
+                catch (Exception ex)   // no network, or the exe sits somewhere it can't write
+                {
+                    fetchFailed = true;
+                    update.Text = "مش عارف أنزّل التحديث (" + ex.Message + ") — افتح صفحة الإصدارات";
+                }
+                progress.Visible = false;
+                update.Enabled = true;
+                if (fetchFailed) return;
+            }
+
+            DialogResult answer = MessageBox.Show(this,
+                "الإصدار " + latest.ToString(3) + " اتنزّل. هاتها هيقفل ويفتح تاني بيه. نعمل كده دلوقتي؟",
+                "تحديث", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1,
+                MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
+            if (answer != DialogResult.Yes)
+            {
+                update.Text = "الإصدار " + latest.ToString(3) + " جاهز — أعد التشغيل";
+                return;
+            }
+            Updater.Apply(Application.ExecutablePath, fresh, Process.GetCurrentProcess().Id);
+            Close();
         }
 
         static Icon LoadIcon()
