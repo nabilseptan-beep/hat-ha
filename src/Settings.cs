@@ -15,6 +15,8 @@ namespace Hatha
 
         // The day yt-dlp was last installed or updated.
         public DateTime YtDlpUpdated = DateTime.MinValue;
+        // "", a browser name for --cookies-from-browser, or the path of a cookies.txt file.
+        public string Cookies = "";
 
         public static Settings Load()
         {
@@ -35,6 +37,7 @@ namespace Hatha
             {
                 settings.YtDlpUpdated = date;
             }
+            if (values.TryGetValue("cookies", out text)) settings.Cookies = text;
             return settings;
         }
 
@@ -44,6 +47,7 @@ namespace Hatha
             File.WriteAllLines(FilePath, new[]
             {
                 "yt_dlp_updated=" + YtDlpUpdated.ToString(DateFormat, CultureInfo.InvariantCulture),
+                "cookies=" + Cookies,
             });
         }
     }

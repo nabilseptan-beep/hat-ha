@@ -11,6 +11,7 @@ namespace Hatha
     {
         readonly Settings settings = Settings.Load();
         readonly TabControl tabs;
+        readonly HathaTab hatha;
         readonly ToolStripStatusLabel status;
         readonly ToolStripProgressBar progress;
         readonly ToolStripStatusLabel retry;
@@ -29,8 +30,9 @@ namespace Hatha
             AutoScaleDimensions = new SizeF(96f, 96f);
             ClientSize = new Size(720, 540);
 
-            tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(16, 6) };
-            tabs.TabPages.Add(new TabPage("هاتها"));
+            hatha = new HathaTab(settings);
+            tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(16, 6), RightToLeftLayout = true };
+            tabs.TabPages.Add(hatha);
             tabs.TabPages.Add(new TabPage("قصقوصة"));
 
             // The form mirrors its children, so the strip is laid out left-to-right and shows up right-to-left.
@@ -52,6 +54,13 @@ namespace Hatha
         {
             base.OnLoad(e);
             Setup();
+        }
+
+        // A yt-dlp left running would keep writing into Downloads after the window is gone.
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            hatha.Cancel();
+            base.OnFormClosing(e);
         }
 
         // Installs the engines on the first run, otherwise updates yt-dlp once a week. The tabs wait for it.
@@ -93,6 +102,22 @@ namespace Hatha
         {
             using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Hatha.icon.ico"))
                 return new Icon(stream);
+        }
+    }
+
+    // A tab page mirrored the way a form is, so controls laid out from the left show up from the right.
+    // A mirrored TabControl doesn't pass that on to its pages.
+    internal class MirroredTabPage : TabPage
+    {
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= Native.WS_EX_LAYOUTRTL | Native.WS_EX_NOINHERITLAYOUT;
+                cp.ExStyle &= ~(Native.WS_EX_RTLREADING | Native.WS_EX_RIGHT | Native.WS_EX_LEFTSCROLLBAR);
+                return cp;
+            }
         }
     }
 }

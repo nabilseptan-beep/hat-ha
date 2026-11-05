@@ -1,4 +1,5 @@
 using System;
+using System.Net;
 using System.Reflection;
 using System.Windows.Forms;
 
@@ -15,6 +16,8 @@ namespace Hatha
         [STAThread]
         static void Main()
         {
+            // Without a target framework attribute the runtime would default to TLS 1.0, which GitHub refuses.
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             Native.SetProcessDPIAware();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

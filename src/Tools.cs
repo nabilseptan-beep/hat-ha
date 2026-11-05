@@ -9,44 +9,48 @@ using System.Threading.Tasks;
 
 namespace Hatha
 {
-    // yt-dlp and ffmpeg live in %LOCALAPPDATA%\Hatha. They are not shipped inside the exe: the first run
+    // yt-dlp, ffmpeg and deno live in %LOCALAPPDATA%\Hatha. They are not shipped inside the exe: the first run
     // downloads them from their GitHub releases, and yt-dlp updates itself once a week (sites keep changing).
+    // deno is the JavaScript runtime yt-dlp needs for YouTube; it is found by sitting next to yt-dlp.exe.
     internal static class Tools
     {
         public static readonly string Folder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Hatha");
         public static readonly string YtDlp = Path.Combine(Folder, "yt-dlp.exe");
+        public static readonly string Deno = Path.Combine(Folder, "deno.exe");
         public static readonly string FfmpegFolder = Path.Combine(Folder, "ffmpeg");
         public static readonly string Ffmpeg = Path.Combine(FfmpegFolder, "ffmpeg.exe");
         public static readonly string Ffprobe = Path.Combine(FfmpegFolder, "ffprobe.exe");
 
         const string YtDlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
+        const string DenoUrl = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip";
         // The yt-dlp project's own ffmpeg build. The shared variant is half the size of the static one.
         const string FfmpegUrl = "https://github.com/yt-dlp/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl-shared.zip";
 
         public static bool Installed
         {
-            get { return File.Exists(YtDlp) && File.Exists(Ffmpeg) && File.Exists(Ffprobe); }
+            get { return File.Exists(YtDlp) && File.Exists(Deno) && File.Exists(Ffmpeg) && File.Exists(Ffprobe); }
         }
 
         // Downloads whatever is missing. Progress is (what is happening, percent of the current download).
         public static async Task Install(Action<string, int> progress)
         {
             Directory.CreateDirectory(Folder);
-            // Without a target framework attribute the runtime would default to TLS 1.0, which GitHub refuses.
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-
             if (!File.Exists(YtDlp))
                 await Download(YtDlpUrl, YtDlp, "بينزّل yt-dlp", progress);
-
+            if (!File.Exists(Deno))
+                await DownloadZip(DenoUrl, Folder, "deno", progress);
             if (!File.Exists(Ffmpeg) || !File.Exists(Ffprobe))
-            {
-                string zip = Path.Combine(Folder, "ffmpeg.zip");
-                await Download(FfmpegUrl, zip, "بينزّل ffmpeg", progress);
-                progress("بيفك ffmpeg", 100);
-                await Task.Run(delegate { ExtractBin(zip, FfmpegFolder); });
-                File.Delete(zip);
-            }
+                await DownloadZip(FfmpegUrl, FfmpegFolder, "ffmpeg", progress);
+        }
+
+        static async Task DownloadZip(string url, string folder, string what, Action<string, int> progress)
+        {
+            string zip = Path.Combine(Folder, what + ".zip");
+            await Download(url, zip, "بينزّل " + what, progress);
+            progress("بيفك " + what, 100);
+            await Task.Run(delegate { ExtractPrograms(zip, folder); });
+            File.Delete(zip);
         }
 
         static async Task Download(string url, string path, string what, Action<string, int> progress)
@@ -63,15 +67,17 @@ namespace Hatha
             File.Move(part, path);
         }
 
-        // Keeps only the bin folder: ffmpeg, ffprobe and the DLLs they share. ffplay is not needed.
-        static void ExtractBin(string zip, string folder)
+        // Keeps the programs and the DLLs they share, flat in one folder; docs and headers stay in the zip.
+        // ffplay is not needed.
+        static void ExtractPrograms(string zip, string folder)
         {
             Directory.CreateDirectory(folder);
             using (ZipArchive archive = ZipFile.OpenRead(zip))
             {
                 foreach (ZipArchiveEntry entry in archive.Entries)
                 {
-                    if (!entry.FullName.Contains("/bin/") || entry.Name.Length == 0 || entry.Name == "ffplay.exe") continue;
+                    string extension = Path.GetExtension(entry.Name).ToLowerInvariant();
+                    if ((extension != ".exe" && extension != ".dll") || entry.Name == "ffplay.exe") continue;
                     entry.ExtractToFile(Path.Combine(folder, entry.Name), true);
                 }
             }
@@ -125,10 +131,14 @@ namespace Hatha
             process.BeginErrorReadLine();
         }
 
+        // yt-dlp.exe is a launcher whose child does the work (and runs ffmpeg), so the whole tree has to go.
         public void Kill()
         {
-            try { process.Kill(); }
-            catch (InvalidOperationException) { }
+            try
+            {
+                Process.Start(new ProcessStartInfo("taskkill", "/T /F /PID " + process.Id) { UseShellExecute = false, CreateNoWindow = true });
+            }
+            catch (InvalidOperationException) { }   // already gone
         }
 
         void Post(SendOrPostCallback action)
