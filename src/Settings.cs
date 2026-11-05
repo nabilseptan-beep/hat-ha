@@ -1,0 +1,50 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+
+namespace Hatha
+{
+    // Stored in %APPDATA%\Hatha\settings.ini as key=value lines.
+    internal sealed class Settings
+    {
+        static readonly string Folder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Hatha");
+        static readonly string FilePath = Path.Combine(Folder, "settings.ini");
+        const string DateFormat = "yyyy-MM-dd";
+
+        // The day yt-dlp was last installed or updated.
+        public DateTime YtDlpUpdated = DateTime.MinValue;
+
+        public static Settings Load()
+        {
+            var settings = new Settings();
+            if (!File.Exists(FilePath)) return settings;
+
+            var values = new Dictionary<string, string>();
+            foreach (string line in File.ReadAllLines(FilePath))
+            {
+                int equals = line.IndexOf('=');
+                if (equals > 0) values[line.Substring(0, equals).Trim()] = line.Substring(equals + 1).Trim();
+            }
+
+            string text;
+            DateTime date;
+            if (values.TryGetValue("yt_dlp_updated", out text)
+                && DateTime.TryParseExact(text, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
+            {
+                settings.YtDlpUpdated = date;
+            }
+            return settings;
+        }
+
+        public void Save()
+        {
+            Directory.CreateDirectory(Folder);
+            File.WriteAllLines(FilePath, new[]
+            {
+                "yt_dlp_updated=" + YtDlpUpdated.ToString(DateFormat, CultureInfo.InvariantCulture),
+            });
+        }
+    }
+}
