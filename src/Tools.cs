@@ -97,7 +97,9 @@ namespace Hatha
             string ytDlp = await FirstLine(YtDlp, "--version");
             string ffmpeg = await FirstLine(Ffmpeg, "-version");
             string deno = await FirstLine(Deno, "--version");
-            Versions = "yt-dlp " + ytDlp + " · ffmpeg " + Word(ffmpeg, 2) + " · deno " + Word(deno, 1);
+            string build = Word(ffmpeg, 2);   // "N-128416-g5048d707a3-20261104": the number is enough
+            int hash = build.IndexOf("-g");
+            Versions = "yt-dlp " + ytDlp + " · ffmpeg " + (hash > 0 ? build.Substring(0, hash) : build) + " · deno " + Word(deno, 1);
         }
 
         static async Task<string> FirstLine(string exe, string args)

@@ -129,14 +129,10 @@ namespace Hatha
             }
         }
 
-        // Once a day, asks GitHub whether a newer release exists and offers it on the status line.
+        // Asks GitHub whether a newer release exists (one small request) and offers it on the status line.
         async Task CheckForUpdate()
         {
-            if (settings.UpdateChecked >= DateTime.Today) return;
             Version found = await Updater.Latest();
-            if (found == null) return;   // offline, or nothing released yet: ask again next time
-            settings.UpdateChecked = DateTime.Today;
-            settings.Save();
             if (!Updater.IsNewer(found, Program.Version)) return;
             latest = found;
             update.Text = "فيه إصدار " + latest.ToString(3) + " جديد — حدّث دلوقتي";

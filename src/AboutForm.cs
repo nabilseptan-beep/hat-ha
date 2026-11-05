@@ -24,7 +24,7 @@ namespace Hatha
             Font = new Font("Segoe UI", 10f);
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoScaleDimensions = new SizeF(96f, 96f);
-            ClientSize = new Size(400, 250);
+            ClientSize = new Size(420, 262);
 
             var logo = new PictureBox
             {
@@ -40,14 +40,14 @@ namespace Hatha
                 Text = "هاتها",
                 Font = new Font("Segoe UI", 14f, FontStyle.Bold),
                 Location = new Point(80, 14),
-                Size = new Size(304, 30),
+                Size = new Size(324, 30),
             };
 
             var version = new Label
             {
                 Text = "الإصدار " + Program.Version + " · تطوير: " + Developer,
                 Location = new Point(80, 46),
-                Size = new Size(304, 24),
+                Size = new Size(324, 24),
                 ForeColor = SystemColors.GrayText,
             };
 
@@ -55,19 +55,19 @@ namespace Hatha
             {
                 Text = "بينزّل بـ yt-dlp وبيعدّل بـ ffmpeg، والاتنين في " + Tools.Folder + "\n" + Tools.Versions,
                 Location = new Point(16, 84),
-                Size = new Size(368, 66),
+                Size = new Size(388, 72),
             };
 
-            var repo = new LinkLabel { Text = "الكود على GitHub", Location = new Point(16, 156), Size = new Size(180, 24) };
+            var repo = new LinkLabel { Text = "الكود على GitHub", Location = new Point(16, 164), Size = new Size(180, 24) };
             repo.LinkClicked += delegate { Process.Start(Repo); };
-            var report = new LinkLabel { Text = "بلّغ عن مشكلة أو اقترح حاجة", Location = new Point(16, 182), Size = new Size(260, 24) };
+            var report = new LinkLabel { Text = "بلّغ عن مشكلة أو اقترح حاجة", Location = new Point(16, 190), Size = new Size(260, 24) };
             report.LinkClicked += delegate { Process.Start(Repo + "/issues/new"); };
 
             var close = new Button
             {
                 Text = "إغلاق",
                 DialogResult = DialogResult.OK,
-                Location = new Point(288, 206),
+                Location = new Point(308, 216),
                 Size = new Size(96, 34),
             };
 
