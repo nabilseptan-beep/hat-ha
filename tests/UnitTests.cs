@@ -62,7 +62,8 @@ namespace Hatha
             string args = YtDlp.DownloadArgs(request, @"C:\Users\me\AppData\Local\Hatha\ffmpeg");
             Contains(args, "--ffmpeg-location \"C:\\Users\\me\\AppData\\Local\\Hatha\\ffmpeg\"");
             Contains(args, "-o \"C:\\Users\\me\\Downloads\\هاتها\\%(title)s%(height& [{}p]|)s.%(ext)s\"");
-            Contains(args, "--progress-template \"download:HATHA_PROGRESS %(progress._percent_str)s\"");
+            Contains(args, "--progress-template \"download:HATHA_PROGRESS %(progress.downloaded_bytes|0)d"
+                + " %(progress.total_bytes,progress.total_bytes_estimate|0)d %(progress.speed|0)d %(progress.eta|0)d\"");
             Contains(args, "--print \"after_move:HATHA_FILE %(filepath)s\"");
             Contains(args, "--no-simulate");
             Contains(args, "-S \"res,+codec:avc:m4a,ext\" --merge-output-format mp4");
@@ -88,16 +89,32 @@ namespace Hatha
 
         static void YtDlpOutput()
         {
-            Equal(YtDlp.ParseProgress("HATHA_PROGRESS   5.3%").ToString(), "5", "progress 5.3%");
-            Equal(YtDlp.ParseProgress("HATHA_PROGRESS 100.0%").ToString(), "100", "progress 100%");
-            Equal(YtDlp.ParseProgress("[download] 45.0% of 10MiB").ToString(), "-1", "unmarked progress line");
-            Equal(YtDlp.ParseProgress("HATHA_FILE C:\\5%.mp4").ToString(), "-1", "file line is not progress");
+            Progress step = YtDlp.ParseProgress("HATHA_PROGRESS 14680064 29360128 3355443 12");
+            Equal(step.Percent.ToString(), "50", "percent from bytes");
+            Equal(step.ToString(), "50% · 3.2 ميجا/ث · فاضل 0:12 · من 28 ميجا", "progress in words");
+            step = YtDlp.ParseProgress("HATHA_PROGRESS 524288 0 0 0");
+            Equal(step.Percent.ToString(), "-1", "no total, no percent");
+            Equal(step.ToString(), "512 كيلو", "only what is known");
+            Equal(YtDlp.ParseProgress("HATHA_PROGRESS 100 100 0 0").Percent.ToString(), "100", "done");
+            Equal(YtDlp.ParseProgress("HATHA_PROGRESS 100 100 0 3700").ToString(), "100% · فاضل 1:01:40 · من 100 بايت", "an hour or more");
+            Equal((YtDlp.ParseProgress("[download] 45.0% of 10MiB") == null).ToString(), "True", "unmarked progress line");
+            Equal((YtDlp.ParseProgress("HATHA_FILE C:\\5%.mp4") == null).ToString(), "True", "file line is not progress");
+            Equal(Progress.Size(999), "999 بايت", "bytes");
+            Equal(Progress.Size(1536), "1.5 كيلو", "kilobytes with a decimal");
+            Equal(Progress.Size(1572864000), "1.5 جيجا", "gigabytes");
 
             Equal(YtDlp.ParseFile(@"HATHA_FILE C:\Users\me\Downloads\هاتها\حلقة 3.mp4"), @"C:\Users\me\Downloads\هاتها\حلقة 3.mp4", "file");
             Equal(YtDlp.ParseFile("HATHA_PROGRESS 1%") ?? "null", "null", "progress line is not a file");
 
             Equal(YtDlp.LastError(new[] { "WARNING: x", "ERROR: [youtube] abc: Video unavailable", "ERROR: second" }), "second", "last error");
             Equal(YtDlp.LastError(new[] { "WARNING: x" }), "yt-dlp فشل من غير ما يقول ليه", "no error line");
+
+            Equal(YtDlp.Explain("[youtube] abc: Private video. Sign in if you've been granted access to this video"), "الفيديو ده محتاج تسجيل دخول: اختار الكوكيز من القايمة وجرّب تاني.", "private video");
+            Equal(YtDlp.Explain("[generic] Unsupported URL: https://example.com/page"), "اللينك ده مش لينك فيديو، أو الموقع مش مدعوم.", "unsupported");
+            Equal(YtDlp.Explain("[youtube] abc: Video unavailable"), "الفيديو مش موجود، يمكن اتمسح أو اللينك غلط.", "unavailable");
+            Equal(YtDlp.Explain("Unable to download webpage: <urlopen error [Errno 11001] getaddrinfo failed>"), "مش عارف أوصل للموقع: اتأكد من النت.", "offline");
+            Equal(YtDlp.Explain("[youtube] abc: This video has DRM protection"), "المحتوى ده مشفّر، وده خارج نطاق البرنامج.", "drm");
+            Equal(YtDlp.Explain("something new"), "something new", "unknown errors pass through");
         }
 
         static void FfmpegArgs()
@@ -143,6 +160,10 @@ namespace Hatha
             Equal(Ffmpeg.ParseProgress("out_time_us=2500000").ToString(System.Globalization.CultureInfo.InvariantCulture), "2.5", "progress seconds");
             Equal(Ffmpeg.ParseProgress("out_time_ms=2500000").ToString(), "-1", "only the us line counts");
             Equal(Ffmpeg.ParseProgress("progress=end").ToString(), "-1", "end line");
+            Equal(Ffmpeg.ParseSpeed("speed=  44x").ToString(System.Globalization.CultureInfo.InvariantCulture), "44", "speed");
+            Equal(Ffmpeg.ParseSpeed("speed=1.25x").ToString(System.Globalization.CultureInfo.InvariantCulture), "1.25", "fractional speed");
+            Equal(Ffmpeg.ParseSpeed("speed=N/A").ToString(), "-1", "unknown speed");
+            Equal(Ffmpeg.ParseSpeed("fps=30").ToString(), "-1", "not a speed line");
             foreach (string line in new[] { "frame=12", "fps=0.00", "stream_0_0_q=28.0", "bitrate=N/A", "total_size=4096", "out_time_us=1", "out_time_ms=1", "out_time=00:00:00.000001", "dup_frames=0", "drop_frames=0", "speed=1.2x", "progress=continue" })
                 if (Ffmpeg.IsError(line)) Fail("[" + line + "] is progress, not an error");
             if (!Ffmpeg.IsError("C:\\x.mp4: No such file or directory")) Fail("a complaint should count as an error");

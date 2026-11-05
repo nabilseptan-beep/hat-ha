@@ -1,13 +1,15 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
 
 namespace Hatha
 {
-    // Small dialog with the app name, version and developer.
+    // Small dialog with the app name, version, developer, engine versions and the links that matter.
     internal sealed class AboutForm : Form
     {
         const string Developer = "Nabil Septan";
+        const string Repo = "https://github.com/nabilseptan-beep/hat-ha";
 
         public AboutForm()
         {
@@ -22,7 +24,7 @@ namespace Hatha
             Font = new Font("Segoe UI", 10f);
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoScaleDimensions = new SizeF(96f, 96f);
-            ClientSize = new Size(360, 200);
+            ClientSize = new Size(400, 250);
 
             var logo = new PictureBox
             {
@@ -38,40 +40,38 @@ namespace Hatha
                 Text = "هاتها",
                 Font = new Font("Segoe UI", 14f, FontStyle.Bold),
                 Location = new Point(80, 14),
-                Size = new Size(264, 30),
+                Size = new Size(304, 30),
             };
 
             var version = new Label
             {
-                Text = "الإصدار " + Assembly.GetExecutingAssembly().GetName().Version.ToString(2),
+                Text = "الإصدار " + Program.Version + " · تطوير: " + Developer,
                 Location = new Point(80, 46),
-                Size = new Size(264, 24),
+                Size = new Size(304, 24),
                 ForeColor = SystemColors.GrayText,
             };
 
             var engines = new Label
             {
-                Text = "بينزّل بـ yt-dlp وبيعدّل بـ ffmpeg، والاتنين في " + Tools.Folder,
+                Text = "بينزّل بـ yt-dlp وبيعدّل بـ ffmpeg، والاتنين في " + Tools.Folder + "\n" + Tools.Versions,
                 Location = new Point(16, 84),
-                Size = new Size(328, 44),
+                Size = new Size(368, 66),
             };
 
-            var developer = new Label
-            {
-                Text = "تطوير: " + Developer,
-                Location = new Point(16, 130),
-                Size = new Size(328, 24),
-            };
+            var repo = new LinkLabel { Text = "الكود على GitHub", Location = new Point(16, 156), Size = new Size(180, 24) };
+            repo.LinkClicked += delegate { Process.Start(Repo); };
+            var report = new LinkLabel { Text = "بلّغ عن مشكلة أو اقترح حاجة", Location = new Point(16, 182), Size = new Size(260, 24) };
+            report.LinkClicked += delegate { Process.Start(Repo + "/issues/new"); };
 
             var close = new Button
             {
                 Text = "إغلاق",
                 DialogResult = DialogResult.OK,
-                Location = new Point(16, 158),
+                Location = new Point(288, 206),
                 Size = new Size(96, 34),
             };
 
-            Controls.AddRange(new Control[] { logo, name, version, engines, developer, close });
+            Controls.AddRange(new Control[] { logo, name, version, engines, repo, report, close });
             AcceptButton = close;
             CancelButton = close;
         }

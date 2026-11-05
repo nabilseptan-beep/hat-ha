@@ -23,13 +23,13 @@ namespace Hatha
             Icon = LoadIcon();
             RightToLeft = RightToLeft.Yes;
             RightToLeftLayout = true;
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-            MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
             Font = new Font("Segoe UI", 10f);
             AutoScaleMode = AutoScaleMode.Dpi;
             AutoScaleDimensions = new SizeF(96f, 96f);
             ClientSize = new Size(720, 620);
+            MinimumSize = Size;
+            KeyPreview = true;
 
             hatha = new HathaTab(settings);
             hatha.EditRequested += delegate(string file)
@@ -60,6 +60,19 @@ namespace Hatha
         {
             base.OnLoad(e);
             Setup();
+        }
+
+        // Coming back to the window with a link on the clipboard is as good as pasting it.
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (tabs.Enabled) hatha.OfferClipboard();
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (tabs.Enabled && tabs.SelectedTab == hatha && hatha.Shortcut(keyData)) return true;
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         // A yt-dlp or ffmpeg left running would keep writing into Downloads after the window is gone.
@@ -96,6 +109,8 @@ namespace Hatha
                 }
                 status.Text = "جاهز";
                 tabs.Enabled = true;
+                hatha.OfferClipboard();
+                await Tools.ReadVersions();
             }
             catch (Exception ex)
             {
@@ -116,6 +131,13 @@ namespace Hatha
     // A mirrored TabControl doesn't pass that on to its pages.
     internal class MirroredTabPage : TabPage
     {
+        // What the page measures inside the window at its starting size. Controls anchored to the right or
+        // bottom keep their distance from these edges, so the page must have them before the controls do.
+        protected MirroredTabPage()
+        {
+            Size = new Size(712, 554);
+        }
+
         protected override CreateParams CreateParams
         {
             get

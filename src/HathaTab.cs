@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -13,21 +14,27 @@ namespace Hatha
     internal sealed class HathaTab : MirroredTabPage
     {
         static readonly string[] Browsers = { "", "firefox", "chrome", "edge", "brave" };
-        const int FileItem = 5;   // the "cookies.txt file" entry of the cookies list
+        static readonly Regex Link = new Regex(@"^https?://\S+$");
+        const int FileItem = 5;        // the "cookies.txt file" entry of the cookies list
+        const int TypingPauseMs = 400; // a link is looked up this long after it stops changing
 
         readonly Settings settings;
         readonly TextBox url;
         readonly Button fetch, download, cancel, edit, play, openFolder;
         readonly PictureBox thumb;
         readonly Label title, duration, hint, status;
+        readonly LinkLabel report;
         readonly ComboBox quality, cookies;
         readonly ProgressBar progress;
+        readonly Timer typing = new Timer { Interval = TypingPauseMs };
+        readonly ToolTip tips = new ToolTip();
 
         List<int> heights = new List<int>();
         ToolProcess running;
         bool cancelled;
         bool choosingCookies;
-        string file;   // the last file downloaded
+        string fetched;   // the link whose details are on screen
+        string file;      // the last file downloaded
 
         // Raised with the file's path when the user wants it in قصقوصة.
         public event Action<string> EditRequested = delegate { };
@@ -38,13 +45,17 @@ namespace Hatha
             Text = "هاتها";
 
             var urlLabel = new Label { Text = "اللينك:", Location = new Point(16, 20), Size = new Size(60, 24) };
-            url = new TextBox { Location = new Point(80, 16), Size = new Size(500, 28), RightToLeft = RightToLeft.No };
+            url = new TextBox { Location = new Point(80, 16), Size = new Size(500, 28), RightToLeft = RightToLeft.No, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+            url.HandleCreated += delegate { Native.SetCueBanner(url, "الصق لينك الفيديو هنا"); };
+            url.TextChanged += delegate { typing.Stop(); typing.Start(); };
             url.KeyDown += delegate(object sender, KeyEventArgs e)
             {
                 if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Fetch(); }
             };
-            fetch = new Button { Text = "هات التفاصيل", Location = new Point(592, 14), Size = new Size(104, 32) };
+            typing.Tick += delegate { typing.Stop(); if (Link.IsMatch(url.Text.Trim())) Fetch(); };
+            fetch = new Button { Text = "هات التفاصيل", Location = new Point(592, 14), Size = new Size(104, 32), Anchor = AnchorStyles.Top | AnchorStyles.Right };
             fetch.Click += delegate { Fetch(); };
+            tips.SetToolTip(fetch, "العنوان والصورة والمدة والجودات المتاحة (Enter)");
 
             thumb = new PictureBox
             {
@@ -54,12 +65,13 @@ namespace Hatha
                 BorderStyle = BorderStyle.FixedSingle,
                 BackColor = SystemColors.ControlLight,
             };
-            title = new Label { Location = new Point(272, 60), Size = new Size(424, 52), AutoEllipsis = true, Font = new Font("Segoe UI", 11f, FontStyle.Bold) };
-            duration = new Label { Location = new Point(272, 116), Size = new Size(424, 24), ForeColor = SystemColors.GrayText };
+            title = new Label { Location = new Point(272, 60), Size = new Size(424, 52), AutoEllipsis = true, Font = new Font("Segoe UI", 11f, FontStyle.Bold), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+            duration = new Label { Location = new Point(272, 116), Size = new Size(424, 24), ForeColor = SystemColors.GrayText, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
 
             var qualityLabel = new Label { Text = "الجودة:", Location = new Point(16, 212), Size = new Size(60, 24) };
             quality = new ComboBox { Location = new Point(80, 208), Size = new Size(200, 28), DropDownStyle = ComboBoxStyle.DropDownList };
             FillQualities();
+            tips.SetToolTip(quality, "الجودات اللي الموقع بيقدمها للفيديو ده، أو الصوت بس كـ MP3");
 
             var cookiesLabel = new Label { Text = "الكوكيز:", Location = new Point(16, 252), Size = new Size(60, 24) };
             cookies = new ComboBox { Location = new Point(80, 248), Size = new Size(200, 28), DropDownStyle = ComboBoxStyle.DropDownList };
@@ -72,15 +84,20 @@ namespace Hatha
                 Location = new Point(296, 248),
                 Size = new Size(400, 44),
                 ForeColor = SystemColors.GrayText,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
             };
 
-            download = new Button { Text = "نزّل", Location = new Point(16, 304), Size = new Size(140, 40), Font = new Font("Segoe UI", 11f, FontStyle.Bold) };
+            download = new Button { Text = "نزّل", Location = new Point(16, 304), Size = new Size(140, 40), Font = new Font("Segoe UI", 11f) };
+            Theme.Primary(download);
             download.Click += delegate { Download(); };
+            tips.SetToolTip(download, "ينزّل بالجودة المختارة في Downloads\\هاتها (Ctrl+Enter)");
             cancel = new Button { Text = "إلغاء", Location = new Point(164, 304), Size = new Size(100, 40), Visible = false };
             cancel.Click += delegate { Cancel(); };
 
-            progress = new ProgressBar { Location = new Point(16, 356), Size = new Size(680, 22), Visible = false };
-            status = new Label { Location = new Point(16, 384), Size = new Size(680, 24), AutoEllipsis = true };
+            progress = new ProgressBar { Location = new Point(16, 356), Size = new Size(680, 22), Visible = false, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+            status = new Label { Location = new Point(16, 384), Size = new Size(560, 24), AutoEllipsis = true, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+            report = new LinkLabel { Text = "بلّغ عن المشكلة", Location = new Point(584, 384), Size = new Size(112, 24), Visible = false, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            report.LinkClicked += delegate { Process.Start(Report.Url("التحميل من " + url.Text.Trim(), tips.GetToolTip(status))); };
 
             edit = new Button { Text = "افتح في قصقوصة", Location = new Point(16, 424), Size = new Size(160, 36), Visible = false };
             edit.Click += delegate { EditRequested(file); };
@@ -92,7 +109,7 @@ namespace Hatha
             Controls.AddRange(new Control[]
             {
                 urlLabel, url, fetch, thumb, title, duration, qualityLabel, quality, cookiesLabel, cookies, hint,
-                download, cancel, progress, status, edit, play, openFolder,
+                download, cancel, progress, status, report, edit, play, openFolder,
             });
         }
 
@@ -101,29 +118,61 @@ namespace Hatha
             return Path.Combine(Native.DownloadsFolder(), "هاتها");
         }
 
+        // A link waiting on the clipboard goes straight into the box when the window comes up empty.
+        public void OfferClipboard()
+        {
+            if (url.Text.Length > 0 || !Clipboard.ContainsText()) return;
+            string text = Clipboard.GetText().Trim();
+            if (Link.IsMatch(text)) url.Text = text;
+        }
+
+        // Ctrl+V anywhere on the page pastes a link; Ctrl+Enter downloads.
+        public bool Shortcut(Keys keys)
+        {
+            if (keys == (Keys.Control | Keys.V) && !url.Focused && Clipboard.ContainsText())
+            {
+                url.Text = Clipboard.GetText().Trim();
+                return true;
+            }
+            if (keys == (Keys.Control | Keys.Enter) && download.Enabled)
+            {
+                Download();
+                return true;
+            }
+            return false;
+        }
+
         async void Fetch()
         {
             string link = url.Text.Trim();
-            if (link.Length == 0) return;
+            if (link.Length == 0 || link == fetched || running != null || !Enabled) return;
 
             SetBusy(true);
-            status.Text = "بيجيب التفاصيل...";
+            Say("بيجيب التفاصيل...", SystemColors.ControlText);
             var lines = new List<string>();
             running = new ToolProcess(Tools.YtDlp, YtDlp.InfoArgs(link, settings.Cookies), lines.Add);
             int code = await running.ExitCode;
             SetBusy(false);
             if (cancelled || code != 0)
             {
-                status.Text = cancelled ? "اتلغى." : YtDlp.LastError(lines);
+                fetched = null;
+                ShowDetails(new VideoInfo());   // whatever was on screen belonged to another link
+                if (cancelled) Say("اتلغى.", SystemColors.ControlText);
+                else Fail(YtDlp.LastError(lines));
                 return;
             }
 
-            VideoInfo info = YtDlp.ParseInfo(lines);
+            fetched = link;
+            ShowDetails(YtDlp.ParseInfo(lines));
+            Say("", SystemColors.ControlText);
+        }
+
+        void ShowDetails(VideoInfo info)
+        {
             title.Text = info.Title;
             duration.Text = info.Duration > 0 ? "المدة: " + FormatDuration(info.Duration) : "";
             heights = info.Heights;
             FillQualities();
-            status.Text = "";
             LoadThumbnail(info.Thumbnails);
         }
 
@@ -147,7 +196,7 @@ namespace Hatha
         async void Download()
         {
             string link = url.Text.Trim();
-            if (link.Length == 0) return;
+            if (link.Length == 0 || running != null) return;
 
             var request = new DownloadRequest
             {
@@ -161,19 +210,20 @@ namespace Hatha
 
             SetBusy(true);
             ShowDone(false);
-            progress.Value = 0;
+            progress.Style = ProgressBarStyle.Marquee;
             progress.Visible = true;
-            status.Text = "بيبدأ...";
+            Say("بيبدأ...", SystemColors.ControlText);
             file = null;
             var lines = new List<string>();
             running = new ToolProcess(Tools.YtDlp, YtDlp.DownloadArgs(request, Tools.FfmpegFolder), delegate(string line)
             {
                 lines.Add(line);
-                int percent = YtDlp.ParseProgress(line);
-                if (percent >= 0)
+                Progress step = YtDlp.ParseProgress(line);
+                if (step != null)
                 {
-                    progress.Value = percent;
-                    status.Text = percent < 100 ? "بينزّل " + percent + "%" : "بيجهّز الملف...";
+                    progress.Style = step.Percent >= 0 ? ProgressBarStyle.Continuous : ProgressBarStyle.Marquee;
+                    if (step.Percent >= 0) progress.Value = step.Percent;
+                    status.Text = step.Percent == 100 ? "بيجهّز الملف..." : "بينزّل " + step;
                 }
                 string path = YtDlp.ParseFile(line);
                 if (path != null) file = path;
@@ -182,14 +232,15 @@ namespace Hatha
             SetBusy(false);
             progress.Visible = false;
 
-            if (cancelled) status.Text = "اتلغى.";
-            else if (code != 0) status.Text = YtDlp.LastError(lines);
-            else if (file == null) status.Text = "الملف موجود من قبل في " + request.Folder;
+            if (cancelled) Say("اتلغى.", SystemColors.ControlText);
+            else if (code != 0) Fail(YtDlp.LastError(lines));
+            else if (file == null) Fail("yt-dlp خلص من غير ما يقول فين الملف");
             else
             {
-                status.Text = "خلص: " + Path.GetFileName(file);
+                Say("خلص: " + Path.GetFileName(file), Theme.Success);
                 ShowDone(true);
             }
+            Attention();
         }
 
         public void Cancel()
@@ -197,6 +248,29 @@ namespace Hatha
             if (running == null) return;
             cancelled = true;
             running.Kill();
+        }
+
+        void Say(string message, Color color)
+        {
+            status.Text = message;
+            status.ForeColor = color;
+            tips.SetToolTip(status, "");
+            report.Visible = false;
+        }
+
+        // The plain-words version on screen, the original behind it for the tooltip and the report.
+        void Fail(string error)
+        {
+            Say(YtDlp.Explain(error), Theme.Failure);
+            tips.SetToolTip(status, error);
+            report.Visible = true;
+        }
+
+        // Blinks on the taskbar when the news arrives while the user is elsewhere.
+        void Attention()
+        {
+            Form form = FindForm();
+            if (form != null && Form.ActiveForm != form) Native.Flash(form.Handle);
         }
 
         void SetBusy(bool busy)

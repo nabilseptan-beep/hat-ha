@@ -152,7 +152,7 @@ namespace Hatha
             List<string> lines = Output(Tools.YtDlp, YtDlp.DownloadArgs(request, Tools.FfmpegFolder));
             foreach (string line in lines)
             {
-                if (YtDlp.ParseProgress(line) >= 0) progressLines++;
+                if (YtDlp.ParseProgress(line) != null) progressLines++;
                 file = YtDlp.ParseFile(line) ?? file;
             }
             Expect(progressLines > 0, "progress lines were printed");

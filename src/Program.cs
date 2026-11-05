@@ -13,6 +13,8 @@ namespace Hatha
 {
     internal static class Program
     {
+        public static readonly string Version = Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
+
         [STAThread]
         static void Main()
         {

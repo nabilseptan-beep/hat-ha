@@ -88,6 +88,30 @@ namespace Hatha
         {
             return new ToolProcess(YtDlp, "-U", null).ExitCode;
         }
+
+        // "yt-dlp 2026.10.26 · ffmpeg N-128416-g5048d707a3 · deno 2.9.8", for the About box and reports.
+        public static string Versions = "";
+
+        public static async Task ReadVersions()
+        {
+            string ytDlp = await FirstLine(YtDlp, "--version");
+            string ffmpeg = await FirstLine(Ffmpeg, "-version");
+            string deno = await FirstLine(Deno, "--version");
+            Versions = "yt-dlp " + ytDlp + " · ffmpeg " + Word(ffmpeg, 2) + " · deno " + Word(deno, 1);
+        }
+
+        static async Task<string> FirstLine(string exe, string args)
+        {
+            string first = null;
+            await new ToolProcess(exe, args, delegate(string line) { if (first == null) first = line; }).ExitCode;
+            return first ?? "?";
+        }
+
+        static string Word(string line, int index)
+        {
+            string[] words = line.Split(' ');
+            return words.Length > index ? words[index] : "?";
+        }
     }
 
     // A hidden console process whose output lines and exit are delivered on the thread that started it.

@@ -14,6 +14,39 @@ namespace Hatha
         public List<int> Heights = new List<int>();             // distinct video heights, largest first
     }
 
+    internal sealed class Progress
+    {
+        public long Downloaded, Total, Speed;   // bytes, bytes, bytes per second
+        public int Eta;                         // seconds
+
+        public int Percent { get { return Total > 0 ? (int)Math.Min(100, Downloaded * 100 / Total) : -1; } }
+
+        // "45% · 3.2 ميجا/ث · فاضل 0:12 · من 28 ميجا", leaving out whatever isn't known yet.
+        public override string ToString()
+        {
+            var parts = new List<string>();
+            if (Percent >= 0) parts.Add(Percent + "%");
+            else if (Downloaded > 0) parts.Add(Size(Downloaded));
+            if (Speed > 0) parts.Add(Size(Speed) + "/ث");
+            if (Eta > 0) parts.Add("فاضل " + TimeSpan.FromSeconds(Eta).ToString(Eta >= 3600 ? @"h\:mm\:ss" : @"m\:ss"));
+            if (Total > 0) parts.Add("من " + Size(Total));
+            return string.Join(" · ", parts);
+        }
+
+        public static string Size(long bytes)
+        {
+            double value = bytes;
+            string unit = "بايت";
+            foreach (string next in new[] { "كيلو", "ميجا", "جيجا" })
+            {
+                if (value < 1000) break;
+                value /= 1024;
+                unit = next;
+            }
+            return value.ToString(value < 10 && unit != "بايت" ? "0.#" : "0", CultureInfo.InvariantCulture) + " " + unit;
+        }
+    }
+
     internal sealed class DownloadRequest
     {
         public string Url;
@@ -79,7 +112,8 @@ namespace Hatha
             var args = new StringBuilder(Common);
             args.Append(CookiesArgs(request.Cookies));
             args.Append(" --ffmpeg-location ").Append(Quote(ffmpegFolder));
-            args.Append(" --progress --newline --progress-template \"download:HATHA_PROGRESS %(progress._percent_str)s\"");
+            args.Append(" --progress --newline --progress-template \"download:HATHA_PROGRESS %(progress.downloaded_bytes|0)d"
+                + " %(progress.total_bytes,progress.total_bytes_estimate|0)d %(progress.speed|0)d %(progress.eta|0)d\"");
             args.Append(" --no-simulate --print \"after_move:HATHA_FILE %(filepath)s\"");
             // The height goes into the name, so other qualities of the same video don't count as already downloaded.
             args.Append(" -o ").Append(Quote(request.Folder + @"\%(title)s%(height& [{}p]|)s.%(ext)s"));
@@ -100,13 +134,19 @@ namespace Hatha
             return " --cookies-from-browser " + cookies;
         }
 
-        // Percent from a progress line, or -1 for any other line.
-        public static int ParseProgress(string line)
+        // The four numbers of a progress line (bytes so far, total bytes, bytes per second, seconds left),
+        // or null for any other line. A number yt-dlp doesn't know yet is 0.
+        public static Progress ParseProgress(string line)
         {
-            if (!line.StartsWith("HATHA_PROGRESS ")) return -1;
-            Match match = Regex.Match(line, @"(\d+(\.\d+)?)%");
-            if (!match.Success) return -1;
-            return (int)double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            if (!line.StartsWith("HATHA_PROGRESS ")) return null;
+            string[] parts = line.Substring(15).Split(' ');
+            if (parts.Length != 4) return null;
+            var progress = new Progress();
+            long.TryParse(parts[0], out progress.Downloaded);
+            long.TryParse(parts[1], out progress.Total);
+            long.TryParse(parts[2], out progress.Speed);
+            int.TryParse(parts[3], out progress.Eta);
+            return progress;
         }
 
         // The finished file's path, or null for any other line.
@@ -121,6 +161,27 @@ namespace Hatha
             string error = "yt-dlp فشل من غير ما يقول ليه";
             foreach (string line in lines)
                 if (line.StartsWith("ERROR: ")) error = line.Substring(7);
+            return error;
+        }
+
+        // What the usual errors mean in plain words, or the error itself when it is not a usual one.
+        public static string Explain(string error)
+        {
+            string lower = error.ToLowerInvariant();
+            if (lower.Contains("drm")) return "المحتوى ده مشفّر، وده خارج نطاق البرنامج.";
+            if (lower.Contains("private") || lower.Contains("sign in") || lower.Contains("login") || lower.Contains("log in")
+                || lower.Contains("registered users") || lower.Contains("cookies") || lower.Contains("age-restricted") || lower.Contains("confirm your age"))
+                return "الفيديو ده محتاج تسجيل دخول: اختار الكوكيز من القايمة وجرّب تاني.";
+            if (lower.Contains("unsupported url") || lower.Contains("not a valid url") || lower.Contains("no video"))
+                return "اللينك ده مش لينك فيديو، أو الموقع مش مدعوم.";
+            if (lower.Contains("unavailable") || lower.Contains("removed") || lower.Contains("does not exist") || lower.Contains("not found") || lower.Contains("404"))
+                return "الفيديو مش موجود، يمكن اتمسح أو اللينك غلط.";
+            if (lower.Contains("country") || lower.Contains("geo") || lower.Contains("region"))
+                return "الفيديو محجوب في بلدك.";
+            if (lower.Contains("403") || lower.Contains("429") || lower.Contains("too many requests"))
+                return "الموقع رفض الطلب دلوقتي. استنى شوية وجرّب تاني.";
+            if (lower.Contains("unable to download webpage") || lower.Contains("getaddrinfo") || lower.Contains("timed out") || lower.Contains("connection"))
+                return "مش عارف أوصل للموقع: اتأكد من النت.";
             return error;
         }
 

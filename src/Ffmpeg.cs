@@ -101,6 +101,14 @@ namespace Hatha
             return long.TryParse(line.Substring(12), out micros) ? micros / 1e6 : -1;
         }
 
+        // How many times faster than real time ffmpeg is going, from a "speed=1.2x" line; -1 for any other.
+        public static double ParseSpeed(string line)
+        {
+            if (!line.StartsWith("speed=")) return -1;
+            double speed;
+            return double.TryParse(line.Substring(6).Trim().TrimEnd('x'), NumberStyles.Float, CultureInfo.InvariantCulture, out speed) ? speed : -1;
+        }
+
         // Lines that are not progress bookkeeping are ffmpeg complaining.
         public static bool IsError(string line)
         {
