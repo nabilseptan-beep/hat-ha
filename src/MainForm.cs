@@ -158,7 +158,7 @@ namespace Hatha
                 progress.Visible = true;
                 try
                 {
-                    fresh = await Updater.Fetch(latest, Application.ExecutablePath, delegate(int percent)
+                    fresh = await Updater.Fetch(Application.ExecutablePath, delegate(int percent)
                     {
                         progress.Value = percent;
                         update.Text = "بينزّل الإصدار " + latest.ToString(3) + " (" + percent + "%)";

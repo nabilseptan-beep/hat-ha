@@ -6,7 +6,7 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*", "V*"]
 
 permissions:
   contents: write
@@ -26,7 +26,7 @@ jobs:
       - name: Check the exe carries the tag's version
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}".TrimStart("v")
+          $tag = "${{ github.ref_name }}".TrimStart("vV")
           $exe = (Get-Item Hatha.exe).VersionInfo.FileVersion
           if ($exe -ne "$tag.0") { throw "Hatha.exe is version $exe but the tag says $tag. Bump AssemblyVersion in src\Program.cs." }
 

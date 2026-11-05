@@ -29,10 +29,11 @@ namespace Hatha
             catch (WebException) { return null; }
         }
 
-        // ".../releases/tag/v1.2.0" gives 1.2.0; anything else (like ".../releases" when there are none) gives null.
+        // ".../releases/tag/v1.2.0" (or V1.2.0) gives 1.2.0; anything else, like ".../releases" when there
+        // are none, gives null.
         public static Version ParseTag(string location)
         {
-            Match match = Regex.Match(location ?? "", @"/tag/v?(\d+\.\d+\.\d+)$");
+            Match match = Regex.Match(location ?? "", @"/tag/[vV]?(\d+\.\d+\.\d+)$");
             return match.Success ? new Version(match.Groups[1].Value) : null;
         }
 
@@ -41,14 +42,15 @@ namespace Hatha
             return latest != null && latest > new Version(current);
         }
 
-        // Downloads that release's exe next to the running one, as Hatha.exe.new.
-        public static async Task<string> Fetch(Version version, string exe, Action<int> progress)
+        // Downloads the latest release's exe next to the running one, as Hatha.exe.new. GitHub resolves
+        // "latest" itself, so the tag's spelling doesn't matter.
+        public static async Task<string> Fetch(string exe, Action<int> progress)
         {
             string fresh = exe + ".new";
             using (var client = new WebClient())
             {
                 client.DownloadProgressChanged += delegate(object sender, DownloadProgressChangedEventArgs e) { progress(e.ProgressPercentage); };
-                await client.DownloadFileTaskAsync(new Uri(Releases + "/download/v" + version + "/Hatha.exe"), fresh);
+                await client.DownloadFileTaskAsync(new Uri(Releases + "/latest/download/Hatha.exe"), fresh);
             }
             return fresh;
         }

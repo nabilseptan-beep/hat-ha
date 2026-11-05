@@ -174,6 +174,7 @@ namespace Hatha
         {
             Equal(Updater.ParseTag("https://github.com/nabilseptan-beep/hat-ha/releases/tag/v1.2.0").ToString(), "1.2.0", "tag with v");
             Equal(Updater.ParseTag("https://github.com/nabilseptan-beep/hat-ha/releases/tag/1.2.10").ToString(), "1.2.10", "tag without v");
+            Equal(Updater.ParseTag("https://github.com/nabilseptan-beep/hat-ha/releases/tag/V1.1.0").ToString(), "1.1.0", "tag with a capital V");
             Equal((Updater.ParseTag("https://github.com/nabilseptan-beep/hat-ha/releases") == null).ToString(), "True", "no release yet");
             Equal((Updater.ParseTag(null) == null).ToString(), "True", "no location");
             Equal(Updater.IsNewer(new Version("1.2.0"), "1.1.9").ToString(), "True", "newer");
