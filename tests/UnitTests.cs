@@ -146,8 +146,8 @@ namespace Hatha
             Equal(Ffmpeg.CompressVideoKbps(1, 3600, 100000).ToString(), "50", "compress bitrate floor");
             string[] passes = Ffmpeg.CompressArgs(input, 0, 60, 1979, @"C:\tmp\log", @"C:\out\x - 16MB.mp4");
             Equal(passes.Length.ToString(), "2", "two passes");
-            Contains(passes[0], " -c:v libx264 -preset veryfast -b:v 1979k -passlogfile \"C:\\tmp\\log\" -pass:v 1 -an -f mp4 NUL");
-            Contains(passes[1], " -b:v 1979k -passlogfile \"C:\\tmp\\log\" -pass:v 2 -c:a aac -b:a 96k -movflags +faststart \"C:\\out\\x - 16MB.mp4\"");
+            Contains(passes[0], " -c:v libx264 -preset veryfast -b:v 1979k -maxrate 1979k -bufsize 3958k -passlogfile \"C:\\tmp\\log\" -pass:v 1 -an -f mp4 NUL");
+            Contains(passes[1], " -b:v 1979k -maxrate 1979k -bufsize 3958k -passlogfile \"C:\\tmp\\log\" -pass:v 2 -c:a aac -b:a 96k -movflags +faststart \"C:\\out\\x - 16MB.mp4\"");
         }
 
         static void FfmpegOutput()

@@ -75,11 +75,13 @@ namespace Hatha
             return Math.Max(kbps, 50);
         }
 
-        // Two passes hit a size target far more accurately than one. The log file is shared between them,
-        // and only the video is two-pass: the audio has no log to read.
+        // Two passes hit a size target far more accurately than one, and the rate cap (maxrate/bufsize)
+        // keeps the encoder from drifting over it on easy content. The log file is shared between the
+        // passes, and only the video is two-pass: the audio has no log to read.
         public static string[] CompressArgs(string input, double from, double to, int videoKbps, string log, string output)
         {
-            string common = Quiet + Piece(input, from, to) + " -c:v libx264 -preset veryfast -b:v " + videoKbps + "k -passlogfile " + Quote(log);
+            string common = Quiet + Piece(input, from, to) + " -c:v libx264 -preset veryfast -b:v " + videoKbps + "k"
+                + " -maxrate " + videoKbps + "k -bufsize " + videoKbps * 2 + "k -passlogfile " + Quote(log);
             return new[]
             {
                 common + " -pass:v 1 -an -f mp4 NUL",
