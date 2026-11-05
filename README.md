@@ -81,15 +81,10 @@ GitHub Actions بتعمل نفس الحاجة: بناء واختبارات ال�
 
 ## إصدار نسخة جديدة
 
-1. غيّر `AssemblyVersion` و`AssemblyFileVersion` في `src\Program.cs`.
-2. اعمل tag بنفس الرقم ورسالة بالعربي (دي اللي بتظهر للناس في صفحة الإصدار) وارفعه:
+1. غيّر `AssemblyVersion` و`AssemblyFileVersion` في `src\Program.cs` وارفع التعديل.
+2. من [صفحة الإصدارات](https://github.com/nabilseptan-beep/hat-ha/releases) دوس **Draft a new release**، اكتب tag جديد بنفس الرقم (مثلاً `v1.1.0`)، واكتب إيه الجديد بالعربي، ودوس **Publish**. (أو من git: `git tag -a v1.1.0 -m "..."` ثم `git push origin v1.1.0`، والرسالة بتبقى هي الملاحظات.)
 
-```
-git tag -a v1.1.0 -m "إيه الجديد..."
-git push origin v1.1.0
-```
-
-Actions بتبني `Hatha.exe` وتنشره في صفحة الإصدارات، والبرنامج عند المستخدمين بيلاقيه في خلال يوم ويعرض التحديث.
+Actions بتبني `Hatha.exe` وتضيفه للإصدار في خلال دقيقة، والبرنامج عند المستخدمين بيلاقيه في خلال يوم ويعرض التحديث.
 
 ## الرخصة
 
