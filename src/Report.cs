@@ -12,7 +12,9 @@ namespace Hatha
         public static string Url(string doing, string error)
         {
             string title = error.Length > 80 ? error.Substring(0, 80) + "…" : error;
-            string body = "**اللي كنت بعمله:** " + doing + "\n\n**الخطأ:**\n```\n" + error + "\n```\n\n"
+            string body = "**اللي كنت بعمله:** " + doing + "\n"
+                + "_(اللينك موجود عشان نقدر نجرّب نفس الفيديو؛ لو مش حابب تشاركه امسحه من هنا قبل الإرسال.)_\n\n"
+                + "**الخطأ:**\n```\n" + error + "\n```\n\n"
                 + "**الإصدارات:** هاتها " + Program.Version + " · " + Tools.Versions + "\n**ويندوز:** " + WindowsVersion();
             return Issues + "?title=" + Uri.EscapeDataString(title) + "&body=" + Uri.EscapeDataString(body);
         }
